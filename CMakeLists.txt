@@ -23,7 +23,6 @@ find_library(GLFW libglfw.so.3 HINTS ${CMAKE_SOURCE_DIR}/mujoco-3.6.0/bin)
 set(MUJOCO_HOME ${CMAKE_SOURCE_DIR}/mujoco-3.6.0/)
 message(STATUS "MUJOCO_HOME: " ${MUJOCO_HOME})
 
-
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include
 ${EIGEN3_INCLUDE_DIRS}
 )
@@ -45,6 +44,13 @@ include_directories(
     /usr/local/lib
 )
 
+add_subdirectory(src/control)
+add_subdirectory(src/log)
+add_subdirectory(src/planning)
+add_subdirectory(src/robot)
+add_subdirectory(src/utils)
+
+
 set(COM_SRC
     src/main.cc
     ${MUJOCO_HOME}/simulate/glfw_dispatch.cc
@@ -53,9 +59,9 @@ set(COM_SRC
     ${MUJOCO_HOME}/simulate/platform_ui_adapter.cc    
     
         
-        src/controller.cpp
-        src/robotmodel.cpp
-        src/trajectory.cpp
+        # src/controller.cpp
+        # src/robotmodel.cpp
+        # src/trajectory.cpp
         )
 
 set(COM_LIB 
@@ -67,6 +73,7 @@ ${GLFW}
 add_executable(run ${COM_SRC})
 #add_executable(${PROJECT_NAME} simulate/main.cc)
 target_link_libraries(run 
+    control # control has dependency on robot, planning
 	${COM_LIB} 
 	${CMAKE_DL_LIBS} 
 	${X11_LIBRARIES}
