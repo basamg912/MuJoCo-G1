@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "policy.h"
+
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -476,6 +478,10 @@ int main(int argc, const char** argv) {
   // cout<<"??"<<endl;
   // char str[100] = "../model/fr3.xml"; // hand(xml)
   char str[100] = "../model/kapex/kapex_play.xml"; // hand(xml)
+  Policy policy("../pyfile/exported/policy.onnx");
+  Eigen::VectorXd dummy_obs = Eigen::VectorXd::Zero(820);
+  Eigen::VectorXd action = policy.inference(dummy_obs);
+  std::cout << "Test action: " << action.transpose() << std::endl;
 #if defined(__APPLE__) && defined(__AVX__)
   if (rosetta_error_msg) {
     DisplayErrorDialogBox("Rosetta 2 is not supported", rosetta_error_msg);

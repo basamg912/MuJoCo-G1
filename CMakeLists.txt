@@ -51,7 +51,7 @@ add_subdirectory(src/log)
 add_subdirectory(src/planning)
 add_subdirectory(src/robot)
 add_subdirectory(src/utils)
-
+add_subdirectory(src/policy)
 
 set(COM_SRC
     src/main.cc
@@ -88,7 +88,7 @@ target_link_libraries(run
 	${GLEW_LIBRARIES}
 	${OPENGL_LIBRARIES}
     -lonnxruntime
-    
+    policy
 )
 
 add_custom_command(TARGET run POST_BUILD
