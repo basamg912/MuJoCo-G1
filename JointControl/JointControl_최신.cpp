@@ -47,6 +47,7 @@
 using namespace std;
 using namespace Eigen;
 
+// CJointControl 클래스 내의 CJointControl 생성자
 CJointControl::CJointControl()
 {
 	cout<<"start CJointControl"<<endl;
@@ -677,6 +678,7 @@ void CJointControl::Compute(){
 			m_vmotorgoal.setZero();
 			//	(원본)
 			// 팔 벌리기
+			// ! Eigen 에서는 << operator overloading 되어있어 데이터를 순차적으로 채워넣는 역할
 			m_vmotorgoal.segment(0,m_nJDoF) << -0.0, 0.0, -0.0, +0.01, -0.0, 0.0, 0.0,
 												0.0, -0.00, +.0, -0.01, +0.0, 0.0, 0.0,
 												-0.0, 0.0, 0.0, 0.09, 0.0,

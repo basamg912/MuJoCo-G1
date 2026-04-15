@@ -4,8 +4,6 @@
 
 // #include <iostream>
 #include <eigen3/Eigen/Dense>
-#include <rbdl/rbdl.h>
-#include <rbdl/addons/urdfreader/urdfreader.h>
 
 #include "robotmodel.h"
 #include "trajectory.h"
@@ -25,14 +23,17 @@ public:
 
     void read(double time, double* q, double* qdot);
     void control_mujoco();
-    void write(double* torque);
-
+    void write(double* ctrl);
+    void set_default_pose(mjData* d);
+    void setModel(const mjModel* m, mjData* d){
+        Model.set_mujoco_model(m,d);
+    }
     VectorXd _q, _qdot, _q_order, _qdot_order;
 
     void Initialize();
 
 private:
-    
+    VectorXd _kp_diag, _kd_diag;
     void ModelUpdate();
     void motionPlan();
 
@@ -57,7 +58,7 @@ private:
     void CLIK();
 
     // robotmodel
-    CModel Model;
+    CModel Model; // ! CModel 객체를 생성
 
     int _cnt_plan;
 	VectorXd _time_plan;

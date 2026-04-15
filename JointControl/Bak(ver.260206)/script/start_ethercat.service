@@ -1,0 +1,11 @@
+[Unit]
+Description=Start EtherCAT Master
+Before=start_nuc.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/ethercatctl start
+
+[Install]
+WantedBy=multi-user.target
+

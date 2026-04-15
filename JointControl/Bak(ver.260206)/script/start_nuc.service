@@ -1,0 +1,19 @@
+  GNU nano 6.2          /etc/systemd/system/start_nuc.service                   
+[Unit]
+Description=Start NUC (with Lidar, IMU)
+After=network.target
+
+[Service]
+User=kist
+WorkingDirectory=/home/kist/Humanoid/script
+ExecStart=/home/kist/CIIRobot_Integration/script/starting.sh
+Restart=always
+Environment=ROS_DOMAIN_ID=1
+Environment=CYCLONEDDS_URI=file:/home/kist/cyclonedds/cyclone_dds.xml
+Environment=IOX_ROUDI_CONFIG_FILE=/home/kist/cyclonedds/roudi_config.toml
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+

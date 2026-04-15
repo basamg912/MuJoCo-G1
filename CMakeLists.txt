@@ -25,11 +25,13 @@ message(STATUS "MUJOCO_HOME: " ${MUJOCO_HOME})
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include
 ${EIGEN3_INCLUDE_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/onnxruntime/include
 )
 
 #link_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib/)
 link_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/
+    ${CMAKE_CURRENT_SOURCE_DIR}/onnxruntime/lib
 )
 
 #$ENV{EIGEN3_INCLUDE_DIR}
@@ -85,6 +87,8 @@ target_link_libraries(run
 	GLEW::GLEW
 	${GLEW_LIBRARIES}
 	${OPENGL_LIBRARIES}
+    -lonnxruntime
+    
 )
 
 add_custom_command(TARGET run POST_BUILD

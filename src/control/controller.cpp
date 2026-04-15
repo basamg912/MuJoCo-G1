@@ -2,7 +2,7 @@
 
 CController::CController()
 {
-	_k = 7;
+	_k = 31; // for kapex
 	Initialize();
 }
 
@@ -10,7 +10,38 @@ CController::~CController()
 {
 }
 
+// ! free joint 가상관절. pelvis 가 시뮬레이션 상에서 좌표가 고정되어있지않으니 freejoint 로 설정
+// ! 나머지 관절들은 좌표계가 부모 링크 기준이라서 고정
+void CController::set_default_pose(mjData* d){
 
+	int offset = Model.get_qpos_offset();
+
+	if (offset == 7){
+		d->qpos[0] = 0.0; d->qpos[1] = 0.0; d->qpos[2] = 1.30; d->qpos[3]=1.0; d->qpos[4]=0.0, d->qpos[5]=0.0; d->qpos[6]=0.0;
+	}
+	
+	for (int i= offset; i< Model.getMjModel()->nq; i++){
+		d->qpos[i] = 0.0;
+	}
+
+	// ! 하체
+    d->qpos[offset + 2]  = -0.035;   // LLJ3
+    d->qpos[offset + 3]  = -0.05;     // LLJ4 og : -0.38
+    d->qpos[offset + 4]  = -0.33;    // LLJ5
+    d->qpos[offset + 9]  = 0.035;    // RLJ3
+    d->qpos[offset + 10] = 0.05;    // RLJ4 og : 0.38
+    d->qpos[offset + 11] = 0.33;     // RLJ5
+
+	// ! 팔
+    d->qpos[offset + 17] = 0.2;      // LAJ1
+    d->qpos[offset + 18] = 0.2;      // LAJ2
+    d->qpos[offset + 19] = 0.18;     // LAJ3
+    d->qpos[offset + 20] = -1.0;     // LAJ4
+    d->qpos[offset + 24] = -0.2;     // RAJ1
+    d->qpos[offset + 25] = -0.2;     // RAJ2
+    d->qpos[offset + 26] = -0.18;    // RAJ3
+    d->qpos[offset + 27] = 1.0;      // RAJ4
+}
 
 void CController::read(double t, double* q, double* qdot)
 {	
@@ -27,82 +58,90 @@ void CController::read(double t, double* q, double* qdot)
 
 	for (int i = 0; i < _k; i++)
 	{
-		_q(i) = q[i];
-		_qdot(i) = qdot[i];
+		_q(i) = q[i+ Model.get_qpos_offset()]; // ! free joint 7개 xyz 쿼터니언4개
+		_qdot(i) = qdot[i+ Model.get_qvel_offset()]; // ! free joint 6개 xyz rpy
 		// _qdot(i) = CustomMath::VelLowpassFilter(0.001, 2.0*PI* 10.0, _pre_q(i), _q(i), _pre_qdot(i)); //low-pass filter
 		_pre_q(i) = _q(i);
 		_pre_qdot(i) = _qdot(i);		
 		if(_t < 2.0)///use filtered data after convergece
         {
-			_qdot(i) = qdot[i];
+			_qdot(i) = qdot[i+ Model.get_qvel_offset()];
 		}
 	}
 }
 
-void CController::write(double* torque)
+void CController::write(double* ctrl)
 {
+	// position actuator: ctrl에 토크 대신 목표 위치를 전달
 	for (int i = 0; i < _k; i++)
 	{
-		torque[i] = _torque(i);
+		ctrl[i] = _q_des(i);
 	}
 }
 
 void CController::control_mujoco()
 {
-    ModelUpdate();
-    motionPlan();
-	if(_control_mode == 1) //joint space control
-	{
-		if (_t - _init_t < 0.1 && _bool_joint_motion == false)
-		{
-			_start_time = _init_t;
-			_end_time = _start_time + _motion_time;
-			JointTrajectory.reset_initial(_start_time, _q, _qdot);
-			JointTrajectory.update_goal(_q_goal, _qdot_goal, _end_time);
-			_bool_joint_motion = true;
-		}
+    ModelUpdate(); // ! 동역학 계산
+	_q_des = _q_home;
+	_qdot_des.setZero();
+	// ! position 제어 시 pd 제어는 무조코가 진행
+	JointControl();
+
+    // motionPlan(); // ! 목표 설정
+
+
+	// if(_control_mode == 1) //joint space control
+	// {
+	// 	if (_t - _init_t < 0.1 && _bool_joint_motion == false)
+	// 	{
+	// 		_start_time = _init_t;
+	// 		_end_time = _start_time + _motion_time;
+	// 		JointTrajectory.reset_initial(_start_time, _q, _qdot);
+	// 		JointTrajectory.update_goal(_q_goal, _qdot_goal, _end_time);
+	// 		_bool_joint_motion = true;
+	// 	}
 		
-		JointTrajectory.update_time(_t);
-		_q_des = JointTrajectory.position_cubicSpline();
-		_qdot_des = JointTrajectory.velocity_cubicSpline();
+	// 	JointTrajectory.update_time(_t);
+	// 	_q_des = JointTrajectory.position_cubicSpline();
+	// 	_qdot_des = JointTrajectory.velocity_cubicSpline();
 
-		JointControl();
+	// 	JointControl();
 
-		if (JointTrajectory.check_trajectory_complete() == 1)
-		{
-			_bool_plan(_cnt_plan) = 1;
-			_bool_init = true;
-		}
-	}
-	else if(_control_mode == 2)
-	{		
-		if (_t - _init_t < 0.1 && _bool_ee_motion == false)
-		{
-			_start_time = _init_t;
-			_end_time = _start_time + _motion_time;
-			HandTrajectory.reset_initial(_start_time, _x_hand, _xdot_hand);
-			HandTrajectory.update_goal(_x_goal_hand, _xdot_goal_hand, _end_time);
-			_bool_ee_motion = true;
-			// cout<<"_t : "<<_t<<endl;
-			// cout<<"_x_hand 	: "<<_x_hand.transpose()<<endl;
-		}
+	// 	if (JointTrajectory.check_trajectory_complete() == 1)
+	// 	{
+	// 		// _bool_plan(_cnt_plan) = 1;
+	// 		_bool_init = true;
+	// 	}
+	// }
+	// else if(_control_mode == 2)
+	// {		
+	// 	if (_t - _init_t < 0.1 && _bool_ee_motion == false)
+	// 	{
+	// 		_start_time = _init_t;
+	// 		_end_time = _start_time + _motion_time;
+	// 		HandTrajectory.reset_initial(_start_time, _x_hand, _xdot_hand);
+	// 		HandTrajectory.update_goal(_x_goal_hand, _xdot_goal_hand, _end_time);
+	// 		_bool_ee_motion = true;
+	// 		// cout<<"_t : "<<_t<<endl;
+	// 		// cout<<"_x_hand 	: "<<_x_hand.transpose()<<endl;
+	// 	}
 
 		
-		HandTrajectory.update_time(_t);
-		_x_des_hand.head(3) = HandTrajectory.position_cubicSpline();
-		_R_des_hand = HandTrajectory.rotationCubic();
-		_x_des_hand.segment<3>(3) = CustomMath::GetBodyRotationAngle(_R_des_hand);
-		_xdot_des_hand.head(3) = HandTrajectory.velocity_cubicSpline();
-		_xdot_des_hand.segment<3>(3) = HandTrajectory.rotationCubicDot();		
+	// 	HandTrajectory.update_time(_t);
+	// 	_x_des_hand.head(3) = HandTrajectory.position_cubicSpline();
+	// 	_R_des_hand = HandTrajectory.rotationCubic();
+	// 	_x_des_hand.segment<3>(3) = CustomMath::GetBodyRotationAngle(_R_des_hand);
+	// 	_xdot_des_hand.head(3) = HandTrajectory.velocity_cubicSpline();
+	// 	_xdot_des_hand.segment<3>(3) = HandTrajectory.rotationCubicDot();		
 
-		CLIK();
+	// 	CLIK();
 
-		if (HandTrajectory.check_trajectory_complete() == 1)
-		{
-			_bool_plan(_cnt_plan) = 1;
-			_bool_init = true;
-		}
-	}
+	// 	if (HandTrajectory.check_trajectory_complete() == 1)
+	// 	{
+	// 		_bool_plan(_cnt_plan) = 1;
+	// 		_bool_init = true;
+	// 	}
+	// }
 	
 }
 
@@ -129,60 +168,16 @@ void CController::motionPlan()
 	{
 		if(_cnt_plan == 0)
 		{	
-			cout << "plan: " << _cnt_plan << endl;
-			_q_order(0) = _q_home(0);
-			_q_order(1) = _q_home(1);
-			_q_order(2) = _q_home(2);
-			_q_order(3) = _q_home(3);
-			_q_order(4) = _q_home(4);
-			_q_order(5) = _q_home(5);
-			_q_order(6) = _q_home(6);		                    
+			// cout << "plan: " << _cnt_plan << endl;
+			// ! eigen 벡터 원소 접근 (일반 벡터로 치면 v[0])
+			for (int i=0; i<_k; i++){
+				_q_order(i) = _q_home(i);
+			}
+			// cout << "_q_home: "<< _q_home.transpose() << '\n';
+			// cout << "_q_home: "<< _q.transpose() << '\n';  
 			reset_target(10.0, _q_order, _qdot);
 			_cnt_plan++;
 		}
-
-		else if(_cnt_plan == 1)
-		{
-			cout << "plan: " << _cnt_plan << endl;
-
-			// _q_order(0) = 0.742;
-			// _q_order(1) = -1.83;
-			// _q_order(2) = -2.97;
-			// _q_order(3) = -3.14;
-			// _q_order(4) = -2.79;
-			// _q_order(5) = 0.478;
-			// _q_order(6) = 0.565;
-			// reset_target(10.0, _q_order, _qdot);
-
-			Vector3d target_pos;
-			Vector3d target_ori;
-			target_pos(0) = _x_hand(0) + 0.05;
-			target_pos(1) = _x_hand(1) + 0.05;
-			target_pos(2) = _x_hand(2) + 0.05;
-			target_ori(0) = _x_hand(3);
-			target_ori(1) = _x_hand(4);
-			target_ori(2) = _x_hand(5);
-
- 			reset_target(10.0, target_pos, target_ori);
-			_cnt_plan++;
-		}
-		else if(_cnt_plan == 2)
-		{
-			cout << "plan: " << _cnt_plan << endl;
-
-			Vector3d target_pos;
-			Vector3d target_ori;
-			target_pos(0) = _x_hand(0) - 0.05;
-			target_pos(1) = _x_hand(1) - 0.05;
-			target_pos(2) = _x_hand(2) - 0.05;
-			target_ori(0) = _x_hand(3);
-			target_ori(1) = _x_hand(4);
-			target_ori(2) = _x_hand(5);
-
- 			reset_target(10.0, target_pos, target_ori);
-			_cnt_plan++;			
-		}
-		
 	}
 }
 
@@ -204,7 +199,7 @@ void CController::reset_target(double motion_time, VectorXd target_joint_positio
 	_bool_joint_motion = false;
 	_bool_ee_motion = false;
 
-	_q_goal = target_joint_position.head(7);
+	_q_goal = target_joint_position.head(_k);
 	// _qdot_goal = target_joint_velocity.head(7);
 	_qdot_goal.setZero();
 }
@@ -222,19 +217,31 @@ void CController::reset_target(double motion_time, Vector3d target_pos, Vector3d
 }
 
 void CController::JointControl()
-{	
-	_torque.setZero();
-	_A_diagonal = Model._A;
-	for(int i = 0; i < 7; i++){
-		_A_diagonal(i,i) += 1.0;
-	}
-	_torque = _A_diagonal*(400*(_q_des - _q) + 40*(_qdot_des - _qdot)) + Model._bg;
-	// cout<<"_q_des 	 : "<<_q_des.transpose()<<endl;
-	// cout<<"_q 		 : "<<_q.transpose()<<endl;
-	// cout<<"_qdot_des : "<<_qdot_des.transpose()<<endl;
-	// cout<<"_qdot	 : "<<_qdot.transpose()<<endl<<endl;
+{
+	// _torque.setZero();
+	// _A_diagonal = Model._A;
+
+	// // ! armature 질량행렬=관성
+	// // ! 대각원소에 1을 더해서 정규화, 대각값이 너무 작은 관절이 있으면 토크 불안정하기 때문
+	// for(int i = 0; i < _k; i++){
+	// 	_A_diagonal(i,i) += 1.0;
+	// }
+	// // ! Model._bg : 중력보상
+
+
+	// _torque = _A_diagonal*(_kpj*(_q_des - _q) + _kdj*(_qdot_des - _qdot)) + Model._bg;
+
+	// _torque = _kp_diag.cwiseProduct(_q_des - _q) + _kd_diag.cwiseProduct(_qdot_des - _qdot) + Model._bg;
+
+	// position actuator 사용: PD 계산은 MuJoCo가 처리
+	// _q_des는 control_mujoco()에서 trajectory로 업데이트됨
+	// write()에서 _q_des를 d->ctrl로 전달
+
+
 }
 
+// ! closed loop inverse kinematic
+// ! xyz,orientation 을 관절각도로 변환
 void CController::CLIK()
 {
 	_torque.setZero();	
@@ -259,7 +266,7 @@ void CController::CLIK()
 	// _torque(5) = 500*(_q_des(5)-_q(5)) + 50*(_qdot_des(5)-_qdot(5));
 	// _torque(6) = 520*(_q_des(6)-_q(6)) + 15*(_qdot_des(6)-_qdot(6));
 
-	_torque = _A_diagonal * (400 * (_q_des - _q) + 40 * (_qdot_des - _qdot)) + Model._bg;
+	_torque = _A_diagonal * (_kpj * (_q_des - _q) + _kdj * (_qdot_des - _qdot)) + Model._bg;
 
 }
 
@@ -273,8 +280,8 @@ void CController::Initialize()
 	_pre_t = 0.0;
 	_dt = 0.0;
 
-	_kpj = 400.0;
-	_kdj = 20.0;
+	_kpj = 300.0;
+	_kdj = 40.0;
 
 	// _kpj_diagonal.setZero(_k, _k);
 	// //							0 		1	2		3	   4	5 	6
@@ -302,20 +309,31 @@ void CController::Initialize()
 	//////////////////원본///////////////////
 
 	_q_home.setZero(_k);
-	// _q_home(0) = 0.0;
-	// _q_home(1) = -30.0 * DEG2RAD;
-	// _q_home(2) = 30.0 * DEG2RAD;
-	// _q_home(3) = -30.0 * DEG2RAD;
-	// _q_home(4) = 30.0 * DEG2RAD;
-	// _q_home(5) = -60.0 * DEG2RAD;
-	// _q_home(6) = 30.0 * DEG2RAD;
-	_q_home(0) = 0;
-	_q_home(1) = -M_PI_4;
-	_q_home(2) = 0;
-	_q_home(3) = -3 * M_PI_4;
-	_q_home(4) = 0;
-	_q_home(5) = M_PI_2;
-	_q_home(6) = M_PI_4;
+	// ! 
+	// LL (인덱스 0~6)
+	_q_home(2) = -0.035;   // LLJ3
+	_q_home(3) = -0.38;     // LLJ4
+	_q_home(4) = -0.33;    // LLJ5
+
+	// RL (인덱스 7~13)
+	_q_home(9)  = 0.035;   // RLJ3
+	_q_home(10) = 0.38;   // RLJ4
+	_q_home(11) = 0.33;    // RLJ5
+
+	// WL (인덱스 14~16)
+	// 전부 0
+
+	// LA (인덱스 17~23)
+	_q_home(17) = 0.2;     // LAJ1
+	_q_home(18) = 0.2;     // LAJ2
+	_q_home(19) = 0.18;    // LAJ3
+	_q_home(20) = -1.0;    // LAJ4
+
+	// RA (인덱스 24~30)
+	_q_home(24) = -0.2;    // RAJ1
+	_q_home(25) = -0.2;    // RAJ2
+	_q_home(26) = -0.18;   // RAJ3
+	_q_home(27) = 1.0;     // RAJ4
 
 	_start_time = 0.0;
 	_end_time = 0.0;
@@ -325,6 +343,9 @@ void CController::Initialize()
 	_bool_ee_motion = false;
 
 	_q_des.setZero(_k);
+	// ! 발산 방지
+	_q_des = _q_home;
+
 	_qdot_des.setZero(_k);
 	_q_goal.setZero(_k);
 	_qdot_goal.setZero(_k);
@@ -342,14 +363,14 @@ void CController::Initialize()
 	_x_err_hand.setZero(6);
 	_R_des_hand.setZero();
 
-	_I.setIdentity(7,7);
+	_I.setIdentity(_k,_k);
 
-	_pre_q.setZero(7);
-	_pre_qdot.setZero(7);
+	_pre_q.setZero(_k);
+	_pre_qdot.setZero(_k);
 
 	///////////////////save_stack/////////////////////
-	_q_order.setZero(7);
-	_qdot_order.setZero(7);
+	_q_order.setZero(_k);
+	_qdot_order.setZero(_k);
 	// _max_joint_position.setZero(7);
 	// _min_joint_position.setZero(7);
 
@@ -375,4 +396,48 @@ void CController::Initialize()
 	// cout.precision(3);
 	_cnt_plan = 0;
 	_bool_plan(_cnt_plan) = 1;
+
+	_kp_diag.setZero(_k);
+	_kd_diag.setZero(_k);
+	
+	// LL
+	_kp_diag(0) = 83.83;   _kd_diag(0) = 10.67;   // LLJ1
+	_kp_diag(1) = 83.83;   _kd_diag(1) = 10.67;   // LLJ2
+	_kp_diag(2) = 277.15;  _kd_diag(2) = 20.0;    // LLJ3
+	_kp_diag(3) = 277.15;  _kd_diag(3) = 20.0;    // LLJ4
+	_kp_diag(4) = 40.0;    _kd_diag(4) = 2.0;     // LLJ5
+	_kp_diag(5) = 40.0;    _kd_diag(5) = 2.0;     // LLJ6
+	_kp_diag(6) = 5.0;     _kd_diag(6) = 0.05;    // LLJ7
+
+	// RL (동일)
+	_kp_diag(7) = 83.83;   _kd_diag(7) = 10.67;
+	_kp_diag(8) = 83.83;   _kd_diag(8) = 10.67;
+	_kp_diag(9) = 277.15;  _kd_diag(9) = 20.0;
+	_kp_diag(10) = 277.15; _kd_diag(10) = 20.0;
+	_kp_diag(11) = 40.0;   _kd_diag(11) = 2.0;
+	_kp_diag(12) = 40.0;   _kd_diag(12) = 2.0;
+	_kp_diag(13) = 5.0;    _kd_diag(13) = 0.05;
+
+	// WL
+	_kp_diag(14) = 200.0;  _kd_diag(14) = 20.0;
+	_kp_diag(15) = 200.0;  _kd_diag(15) = 20.0;
+	_kp_diag(16) = 200.0;  _kd_diag(16) = 20.0;
+
+	// LA (왼팔) - 어깨 관절 더 강하게
+	_kp_diag(17) = 200.0;  _kd_diag(17) = 15.0;   // LAJ1 (어깨 yaw)
+	_kp_diag(18) = 200.0;  _kd_diag(18) = 15.0;   // LAJ2 (어깨 pitch)
+	_kp_diag(19) = 100.0;  _kd_diag(19) = 8.0;    // LAJ3
+	_kp_diag(20) = 100.0;  _kd_diag(20) = 8.0;    // LAJ4 (팔꿈치)
+	_kp_diag(21) = 50.0;   _kd_diag(21) = 5.0;
+	_kp_diag(22) = 50.0;   _kd_diag(22) = 5.0;
+	_kp_diag(23) = 30.0;   _kd_diag(23) = 3.0;
+
+	// RA - 동일
+	_kp_diag(24) = 200.0;  _kd_diag(24) = 15.0;
+	_kp_diag(25) = 200.0;  _kd_diag(25) = 15.0;
+	_kp_diag(26) = 100.0;  _kd_diag(26) = 8.0;
+	_kp_diag(27) = 100.0;  _kd_diag(27) = 8.0;
+	_kp_diag(28) = 50.0;   _kd_diag(28) = 5.0;
+	_kp_diag(29) = 50.0;   _kd_diag(29) = 5.0;
+	_kp_diag(30) = 30.0;   _kd_diag(30) = 3.0;
 }

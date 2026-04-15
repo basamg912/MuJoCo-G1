@@ -1,0 +1,102 @@
+// ------------------------------------------------------------
+// 주기 설정
+// ------------------------------------------------------------
+constexpr double dControlDt = 0.001;   // 1 kHz
+constexpr double dInputDt   = 0.1;     // 10 Hz
+constexpr int    nInputStep = 100;     // 100 * 0.001 = 0.1s
+
+// ------------------------------------------------------------
+// 함수 내부 상태 (선형 보간용)
+// ------------------------------------------------------------
+static double s_t0 = 0.0;
+
+static double s_pitchStart = 0.0;
+static double s_yawStart   = 0.0;
+
+static double s_pitchGoal  = 0.0;
+static double s_yawGoal    = 0.0;
+
+static bool   s_active     = false;
+
+// ------------------------------------------------------------
+// 10Hz tick 카운터 기반 갱신
+// ------------------------------------------------------------
+if (m_nNeckMotioncount >= nInputStep)
+{
+    // start: 현재 출력값(직전 필터 상태)
+    s_pitchStart = m_dPreNeckPitchDes;
+    s_yawStart   = m_dPreNeckYawDes;
+
+    // goal: 최신 10Hz 입력
+    s_pitchGoal  = m_dNeckPitchDes;
+    s_yawGoal    = m_dNeckYawDes;
+
+    s_t0     = m_dControlTime;  // alpha 계산용
+    s_active = true;
+
+    m_nNeckMotioncount = 0;
+}
+m_nNeckMotioncount++;
+
+// ------------------------------------------------------------
+// 보간 계산
+// ------------------------------------------------------------
+double pitchCmd    = s_pitchGoal;
+double yawCmd      = s_yawGoal;
+double pitchDotCmd = 0.0;
+double yawDotCmd   = 0.0;
+
+if (s_active)
+{
+    double alpha = (m_dControlTime - s_t0) / dInputDt;
+
+    if (alpha >= 1.0) { alpha = 1.0; s_active = false; }
+    if (alpha <  0.0) { alpha = 0.0; }
+
+    pitchCmd = (1.0 - alpha) * s_pitchStart + alpha * s_pitchGoal;
+    yawCmd   = (1.0 - alpha) * s_yawStart   + alpha * s_yawGoal;
+
+    pitchDotCmd = (s_pitchGoal - s_pitchStart) / dInputDt;
+    yawDotCmd   = (s_yawGoal   - s_yawStart)   / dInputDt;
+}
+
+// ------------------------------------------------------------
+// 컷오프 주파수 램프
+// ------------------------------------------------------------
+m_nNeckFilter += dControlDt;
+if (m_nNeckFilter > 1.0)
+{
+    m_nNeckFilter = 1.0;
+}
+
+// ------------------------------------------------------------
+// Low-pass filter
+// ------------------------------------------------------------
+pitchCmd = CustomMath::LowPassFilter(
+    dControlDt, m_nNeckFilter * 10.0 * 2.0 * 3.141592,
+    pitchCmd, m_dPreNeckPitchDes);
+
+yawCmd = CustomMath::LowPassFilter(
+    dControlDt, m_nNeckFilter * 10.0 * 2.0 * 3.141592,
+    yawCmd, m_dPreNeckYawDes);
+
+pitchDotCmd = CustomMath::LowPassFilter(
+    dControlDt, m_nNeckFilter * 1.0 * 2.0 * 3.141592,
+    pitchDotCmd, m_dPreNeckPitchDotDes);
+
+yawDotCmd = CustomMath::LowPassFilter(
+    dControlDt, m_nNeckFilter * 1.0 * 2.0 * 3.141592,
+    yawDotCmd, m_dPreNeckYawDotDes);
+
+// ------------------------------------------------------------
+// 출력 적용
+// ------------------------------------------------------------
+m_vJointQradDes(17)    = pitchCmd;
+m_vJointQradDes(18)    = yawCmd;
+m_vJointQdotradDes(17) = pitchDotCmd;
+m_vJointQdotradDes(18) = yawDotCmd;
+
+m_dPreNeckPitchDes    = m_vJointQradDes(17);
+m_dPreNeckYawDes      = m_vJointQradDes(18);
+m_dPreNeckPitchDotDes = m_vJointQdotradDes(17);
+m_dPreNeckYawDotDes   = m_vJointQdotradDes(18);

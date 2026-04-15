@@ -330,18 +330,14 @@ void PhysicsLoop(mj::Simulate& sim) {
           const auto startCPU = mj::Simulate::Clock::now();
           if(initialpos == true)
           {
-            d->qpos[0] = 0; // to avoid self collision
-            d->qpos[1] = -M_PI_4; // to avoid self collision
-            d->qpos[2] = 0; // to avoid self collision
-            d->qpos[3] = -3 * M_PI_4; // to avoid self collision
-            d->qpos[4] = 0; // to avoid self collision
-            d->qpos[5] = M_PI_2; // to avoid self collision    
-            d->qpos[6] = M_PI_4; // to avoid self collision
+            Control.set_default_pose(d);
             initialpos = false;
+            mj_forward(m,d);
           }
           
           else
           {
+            // ! mujoco 물리엔진에서 계산
             Control.read(d->time, d->qpos, d->qvel);
             Control.control_mujoco();
             Control.write(d->ctrl);
@@ -447,7 +443,7 @@ void PhysicsThread(mj::Simulate* sim, const char* filename) {
     if (d) {
       sim->Load(m, d, filename);
       mj_forward(m, d);
-
+      Control.setModel(m,d);
       // allocate ctrlnoise
       free(ctrlnoise);
       ctrlnoise = static_cast<mjtNum*>(malloc(sizeof(mjtNum)*m->nu));
@@ -479,7 +475,7 @@ int main(int argc, const char** argv) {
   // display an error if running on macOS under Rosetta 2
   // cout<<"??"<<endl;
   // char str[100] = "../model/fr3.xml"; // hand(xml)
-  char str[100] = "../model/fr3.xml"; // hand(xml)
+  char str[100] = "../model/kapex/kapex_play.xml"; // hand(xml)
 #if defined(__APPLE__) && defined(__AVX__)
   if (rosetta_error_msg) {
     DisplayErrorDialogBox("Rosetta 2 is not supported", rosetta_error_msg);
@@ -508,7 +504,8 @@ int main(int argc, const char** argv) {
   // simulate object encapsulates the UI
   auto sim = std::make_unique<mj::Simulate>(
       std::make_unique<mj::GlfwAdapter>(), &cam, &opt, &pert, /* is_passive =*/ false);
-
+  // ! 시뮬레이션 정지
+  sim->run = 0;
   const char* filename = nullptr;
   
   // if (argc >  1) {

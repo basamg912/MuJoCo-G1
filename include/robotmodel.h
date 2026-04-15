@@ -22,16 +22,23 @@ public:
     // 문제상황 CModel 타입 포인터로 CModel 을 상속하는 자식 클래스를 접근
     // CModel* model = new ChildModel(); -> delete model; -> CModel 소멸자 실행 -> ChildModel 소멸자 실행 X
     // -> 자식 클래스에서 할당한 메모리 해제 X -> 메모리 누수 발생 => 최상위 부모 클래스에서 소멸자 virtual 선언
+    
 	virtual ~CModel(); 
 
     // RigidBodyDynamics::Model _model;
+    int get_qpos_offset();
+    int get_qvel_offset();
+    
     void set_mujoco_model(const mjModel* m, mjData* d);
     void update_kinematics(VectorXd & q, VectorXd & qdot); // update robot state
     void update_dynamics(); // calculate _A, _g, _b, _bg
     void calculate_EE_Jacobians(); // calcule jacobian
     void calculate_EE_positions_orientations(); // calculte End-effector postion, orientation
     void calculate_EE_velocity(); // calculate End-effector velocity
-
+    const mjModel* getMjModel(){
+        return _mj_model;
+    }
+    // ! robot 별 기본 포즈 취하도록
     MatrixXd _A; // inertia matrix
     VectorXd _g; // gravity force vector
 	VectorXd _b; // Coriolis/centrifugal force vector
@@ -58,12 +65,14 @@ private:
     VectorXd _q, _qdot; // joint sensordata
     VectorXd _zero_vec_joint; // zero joint vector
 
+    int _qvel_offset;
+    int _qpos_offset;
     int _k; // joint number
     int _id_hand; // hand id
-
     // ! 4/7 RBDL -> Mujoco
     const mjModel* _mj_model;
     mjData* _mj_data;
+    int _hand_body_id;
     bool _bool_model_update, _bool_kinematics_update, _bool_dynamics_update, _bool_Jacobian_update; // update check
 
 };

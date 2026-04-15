@@ -1,5 +1,7 @@
 #include "robotmodel.h"
-#define JDOF 7
+#define JDOF 31
+
+
 
 CModel::CModel()
 {
@@ -73,9 +75,26 @@ void CModel::Initialize()
 
 // }
 
+int CModel::get_qpos_offset(){
+	return _qpos_offset;
+}
+int CModel::get_qvel_offset(){
+	return _qvel_offset;
+}
+
 void CModel::set_mujoco_model(const mjModel* m, mjData* d){
 	_mj_model = m;
 	_mj_data = d;
+
+	_qpos_offset = 0;
+	_qvel_offset = 0;
+	for (int i=0; i<_mj_model->njnt; i++){
+		if (_mj_model->jnt_type[i] == mjJNT_FREE){
+			_qpos_offset += 7;
+			_qvel_offset += 6;
+		}
+	}
+
 	_bool_model_update = true;
 }
 
@@ -83,71 +102,57 @@ void CModel::update_kinematics(VectorXd & q, VectorXd & qdot)
 {
 	_q = q;
 	_qdot = qdot;
-
-	if (_bool_model_update == true)
-	{
-		RigidBodyDynamics::UpdateKinematicsCustom(_model, &_q, &_qdot, NULL); // update kinematics
-	}
-	else
-	{
-		cout << "Robot model is not ready. Please load model first." << endl << endl;
-	}
 	_bool_kinematics_update = true; // check kinematics update
 }
 
 void CModel::update_dynamics()
 {
-	if (_bool_kinematics_update == true)
-	{	
-		RigidBodyDynamics::CompositeRigidBodyAlgorithm(_model, _q, _A, false); // update inertia matrix
-		RigidBodyDynamics::InverseDynamics(_model, _q, _zero_vec_joint, _zero_vec_joint, _g, NULL); // get _g
-		RigidBodyDynamics::InverseDynamics(_model, _q, _qdot, _zero_vec_joint, _bg, NULL); // get _g+_b
-		_b = _bg - _g; //get _b
+    if (_bool_kinematics_update == true)
+    {
+        // 질량행렬
+		int nv = _mj_model->nv; // ! dof 갯수
+		mjtNum M[nv*nv];
+        mj_fullM(_mj_model, M, _mj_data->qM);
+        for (int i = 0; i < _k; i++)
+            for (int j = 0; j < _k; j++)
+                _A(i, j) = M[ (i+ _qvel_offset) * nv + (j+ _qvel_offset)];
 
-		
-	}
-	else
-	{
-		cout << "Robot kinematics is not ready. Please update kinematics first." << endl << endl;
-	}
-	_bool_dynamics_update = true; // check kinematics update
+        // Coriolis + gravity
+        for (int i = 0; i < _k; i++)
+            _bg(i) = _mj_data->qfrc_bias[i+ _qvel_offset];
+    }
+    _bool_dynamics_update = true;
 }
 
 void CModel::calculate_EE_Jacobians()
 {
-	if (_bool_kinematics_update == true)
-	{
-		_J_hand.setZero();
-		_J_tmp.setZero();	
+    if (_bool_kinematics_update == true)
+    {
+        _J_hand.setZero();
+        mjtNum jacp[3 * _mj_model->nv];
+        mjtNum jacr[3 * _mj_model->nv];
+        mj_jacBody(_mj_model, _mj_data, jacp, jacr, _hand_body_id);
 
-		RigidBodyDynamics::CalcPointJacobian6D(_model, _q, _id_hand, _tmp_position_local_task_hand, _J_tmp, false); // update kinematc : false
-		_J_hand.block<3, 7>(0, 0) = _J_tmp.block<3, 7>(3, 0); // linear : last three entries -> first three entries
-		_J_hand.block<3, 7>(3, 0) = _J_tmp.block<3, 7>(0, 0); // angular : first three entries -> last three entries
-
-		_bool_Jacobian_update = true;
-	}
-	else
-	{
-		cout << "Robot kinematics is not ready. Please update kinematics first." << endl << endl;
-	}
-
+        for (int i = 0; i < 3; i++)
+            for (int j = 0; j < _k; j++) {
+                _J_hand(i, j)     = jacp[i * _mj_model->nv + j]; // linear
+                _J_hand(i + 3, j) = jacr[i * _mj_model->nv + j]; // angular
+            }
+        _bool_Jacobian_update = true;
+    }
 }
 
 void CModel::calculate_EE_positions_orientations()
 {
     if (_bool_kinematics_update == true)
-	{
-		_x_hand.setZero();
-		_R_hand.setZero();
+    {
+        for (int i = 0; i < 3; i++)
+            _x_hand(i) = _mj_data->xpos[3 * _hand_body_id + i];
 
-		_x_hand = RigidBodyDynamics::CalcBodyToBaseCoordinates(_model, _q, _id_hand, _position_local_task_hand, false);
-		_R_hand = RigidBodyDynamics::CalcBodyWorldOrientation(_model, _q, _id_hand, false).transpose();
-
-	}
-	else
-	{
-		cout << "Robot kinematics is not ready. Please update kinematics first." << endl << endl;
-	}
+        for (int i = 0; i < 3; i++)
+            for (int j = 0; j < 3; j++)
+                _R_hand(i, j) = _mj_data->xmat[9 * _hand_body_id + i * 3 + j];
+    }
 }
 
 void CModel::calculate_EE_velocity()
