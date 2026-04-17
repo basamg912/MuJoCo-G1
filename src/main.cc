@@ -283,6 +283,10 @@ void PhysicsLoop(mj::Simulate& sim) {
         d = dnew;
         mj_forward(m, d);
 
+        Control.setModel(m,d);
+        Control.set_default_pose(d);
+        initialpos = true;
+
         // allocate ctrlnoise
         free(ctrlnoise);
         ctrlnoise = (mjtNum*) malloc(sizeof(mjtNum)*m->nu);
@@ -304,7 +308,9 @@ void PhysicsLoop(mj::Simulate& sim) {
         m = mnew;
         d = dnew;
         mj_forward(m, d);
-
+        Control.setModel(m,d);
+        Control.set_default_pose(d);
+        initialpos = true;
         // allocate ctrlnoise
         free(ctrlnoise);
         ctrlnoise = static_cast<mjtNum*>(malloc(sizeof(mjtNum)*m->nu));
@@ -330,19 +336,43 @@ void PhysicsLoop(mj::Simulate& sim) {
         if (sim.run) {
           // record cpu time at start of iteration
           const auto startCPU = mj::Simulate::Clock::now();
-          if(initialpos == true)
+
+          if( d->time == 0.0 || initialpos == true)
           {
+            int temp = m->nu;
+            std::vector<double> saved_ctrl(temp-31);
+            for(int i=31; i<temp; i++){
+              saved_ctrl[i-31] = d->ctrl[i];
+            }
+            
             Control.set_default_pose(d);
+            Control._obs.reset(); // ! obs, last action reset
+            Control._last_action.setZero();
+            Control.reset();
+
             initialpos = false;
             mj_forward(m,d);
+
+            for (int i=31; i<temp; i++){
+              d->ctrl[i] = saved_ctrl[i-31];
+            }
           }
           
           else
           {
             // ! mujoco 물리엔진에서 계산
             Control.read(d->time, d->qpos, d->qvel);
-            Control.control_mujoco();
+            Control._kp_scale = d->ctrl[37] + 1.0;
+            Control._kd_scale = d->ctrl[38] + 1.0;
+
+            static int step_count = 0;
+            if (step_count % 4 == 0){ // ! isaaclab 제어주기 4step 당 한번 (0.005Hz, decimation=4 -> 0.02 -> 50Hz)
+              Control.control_mujoco();
+            }
             Control.write(d->ctrl);
+            Control.setVelocityCommand(d->ctrl[31], d->ctrl[32], d->ctrl[33]);
+            Control.setComCommand(d->ctrl[34], d->ctrl[35], d->ctrl[36]);
+            step_count++;
           }
 
           // elapsed CPU and simulation time since last sync
@@ -446,6 +476,18 @@ void PhysicsThread(mj::Simulate* sim, const char* filename) {
       sim->Load(m, d, filename);
       mj_forward(m, d);
       Control.setModel(m,d);
+      
+      Control.loadPolicy("../pyfile/exported/policy.onnx");
+      double cmd_vx = d->ctrl[31];
+      double cmd_vy = d->ctrl[32];
+      double cmd_wz = d->ctrl[33];
+      Control.setVelocityCommand(cmd_vx, cmd_vy, cmd_wz);
+
+      double com_x = d->ctrl[34];
+      double com_y = d->ctrl[35];
+      double com_z = d->ctrl[36];
+      Control.setComCommand(com_x, com_y, com_z);
+
       // allocate ctrlnoise
       free(ctrlnoise);
       ctrlnoise = static_cast<mjtNum*>(malloc(sizeof(mjtNum)*m->nu));
@@ -478,6 +520,7 @@ int main(int argc, const char** argv) {
   // cout<<"??"<<endl;
   // char str[100] = "../model/fr3.xml"; // hand(xml)
   char str[100] = "../model/kapex/kapex_play.xml"; // hand(xml)
+  // char str[100] = "../model/kapex/kapex_converted.xml";
   Policy policy("../pyfile/exported/policy.onnx");
   Eigen::VectorXd dummy_obs = Eigen::VectorXd::Zero(820);
   Eigen::VectorXd action = policy.inference(dummy_obs);

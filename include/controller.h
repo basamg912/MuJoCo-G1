@@ -4,7 +4,7 @@
 
 #include "observation.h"
 #include "policy.h" 
-
+#include "mapping.h"
 // #include <iostream>
 #include <eigen3/Eigen/Dense>
 
@@ -23,8 +23,13 @@ class CController
 public:
     CController();
     virtual ~CController();	
+    double _last_policy_time = -1.0;
+    
+    double _kp_scale = 1.0; 
+    double _kd_scale = 1.0;
 
     Observation _obs;
+    
     // ? unique_ptr 은 복사 불가능 -> 하나의 객체는 하나의 포인터만 가리킴
     std::unique_ptr<Policy> _policy;
     Eigen::VectorXd _last_action;
@@ -35,27 +40,35 @@ public:
     void set_default_pose(mjData* d);
     void setModel(const mjModel* m, mjData* d){
         Model.set_mujoco_model(m,d);
+        _obs.setMujocoModel(m,d);
+        _obs.reset();
+        _last_action.setZero(31);
     }
     VectorXd _q, _qdot, _q_order, _qdot_order;
 
     void Initialize();
-
-private:
-    VectorXd _kp_diag, _kd_diag;
-    void ModelUpdate();
-    void motionPlan();
-    void setMujocoModel(mjModel* m, mjModel* d){
-        Model.set_mujoco_model(m,d);
-        _obs.setMujocoModel(m,d);
+    void setMujocoModel(mjModel* m, mjData* d){
+        Model.set_mujoco_model(m, d);
+        _obs.setMujocoModel(m, d);
     }
     void loadPolicy(const std::string& onnx_path){
         // ? Policy 객체 사이즈만큼 heap 영역 메모리 할당 -> onnx 를 생성자에 보내고 실제 객체 생성 -> unique_ptr 로 할당
         _policy = std::make_unique<Policy>(onnx_path);
         _last_action.setZero(31);
     }
-    void setVelocityCommand(double vx, dobule vy, double wz){
+    void setVelocityCommand(double vx, double vy, double wz){
         _obs.setVelocityCommand(vx,vy,wz);
     }
+    void setComCommand(double dx, double dy, double dz){
+        _obs.setComCommand(dx,dy,dz);
+    }
+
+    void reset();
+private:
+    VectorXd _kp_diag, _kd_diag;
+    void ModelUpdate();
+    void motionPlan();
+
 
     void reset_target(double motion_time, VectorXd target_joint_position);
     void reset_target(double motion_time, VectorXd target_joint_position, VectorXd target_joint_velocity);

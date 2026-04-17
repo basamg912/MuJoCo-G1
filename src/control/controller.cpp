@@ -1,5 +1,5 @@
 #include "controller.h"
-
+#include "mapping.h"
 CController::CController()
 {
 	_k = 31; // for kapex
@@ -10,14 +10,20 @@ CController::~CController()
 {
 }
 
+void CController::reset(){
+	_t = 0.0;
+	_pre_t = 0.0;
+	_bool_init = true;
+	_q_des = _q_home;
+	_last_policy_time = -1.0;
+}
 // ! free joint 가상관절. pelvis 가 시뮬레이션 상에서 좌표가 고정되어있지않으니 freejoint 로 설정
 // ! 나머지 관절들은 좌표계가 부모 링크 기준이라서 고정
 void CController::set_default_pose(mjData* d){
-
 	int offset = Model.get_qpos_offset();
 
 	if (offset == 7){
-		d->qpos[0] = 0.0; d->qpos[1] = 0.0; d->qpos[2] = 1.30; d->qpos[3]=1.0; d->qpos[4]=0.0, d->qpos[5]=0.0; d->qpos[6]=0.0;
+		d->qpos[0] = 0.0; d->qpos[1] = 0.0; d->qpos[2] = 1.03; d->qpos[3]=1.0; d->qpos[4]=0.0, d->qpos[5]=0.0; d->qpos[6]=0.0;
 	}
 	
 	for (int i= offset; i< Model.getMjModel()->nq; i++){
@@ -26,21 +32,27 @@ void CController::set_default_pose(mjData* d){
 
 	// ! 하체
     d->qpos[offset + 2]  = -0.035;   // LLJ3
-    d->qpos[offset + 3]  = -0.05;     // LLJ4 og : -0.38
+    d->qpos[offset + 3]  = 0.38;     // LLJ4 og : -0.38
     d->qpos[offset + 4]  = -0.33;    // LLJ5
     d->qpos[offset + 9]  = 0.035;    // RLJ3
-    d->qpos[offset + 10] = 0.05;    // RLJ4 og : 0.38
+    d->qpos[offset + 10] = -0.38;    // RLJ4 og : 0.38
     d->qpos[offset + 11] = 0.33;     // RLJ5
 
 	// ! 팔
     d->qpos[offset + 17] = 0.2;      // LAJ1
     d->qpos[offset + 18] = 0.2;      // LAJ2
     d->qpos[offset + 19] = 0.18;     // LAJ3
-    d->qpos[offset + 20] = -1.0;     // LAJ4
+    d->qpos[offset + 20] = -0.35;     // LAJ4
     d->qpos[offset + 24] = -0.2;     // RAJ1
     d->qpos[offset + 25] = -0.2;     // RAJ2
     d->qpos[offset + 26] = -0.18;    // RAJ3
-    d->qpos[offset + 27] = 1.0;      // RAJ4
+    d->qpos[offset + 27] = 0.35;      // RAJ4
+
+	// ! 관절 속도, ctrl 도 초기화
+	for (int i=0; i< Model.getMjModel()->nv; i++) d->qvel[i] = 0.0;
+	for (int i=0; i<Model.getMjModel()->nu; i++){
+		if(i < 31) d->ctrl[i] = 0.0; // ! actuator 갯수만큼 for 문
+	}
 }
 
 void CController::read(double t, double* q, double* qdot)
@@ -74,8 +86,14 @@ void CController::write(double* ctrl)
 {
 	// position actuator: ctrl에 토크 대신 목표 위치를 전달
 	for (int i = 0; i < _k; i++)
-	{
-		ctrl[i] = _q_des(i);
+	{	
+		int mj_idx = isaac_joint_to_mujoco[i];
+			// ! qdot_des = 0 이면 - kd * _qdot
+		double qdot_clamped = std::max(-joint_vel_limit[mj_idx], std::min(joint_vel_limit[mj_idx], _qdot(mj_idx)));
+		double torque = _kp_scale * joint_kp[mj_idx] * (_q_des(mj_idx) - _q(mj_idx)) - _kd_scale * joint_kd[mj_idx] * qdot_clamped;
+		
+		torque = std::max( -joint_effort_limit[mj_idx], std::min(joint_effort_limit[mj_idx], torque));
+		ctrl[mj_idx] = torque;
 	}
 }
 
@@ -83,11 +101,24 @@ void CController::control_mujoco()
 {
     ModelUpdate(); // ! 동역학 계산
 
-	Eigen::VectorXd stacked_obs = _obs.update(_q, _qdot, _q_home, _last_action);
-	Eigen::VectorXd action = _policy->inference(stacked_obs);
-	_last_action = action;
+	if (_policy == nullptr){
+		_q_des =  _q_home; // ! mujoco idx 순서
+		_qdot_des.setZero();
+		return;
+	}
 
-	_q_des = _q_home + 0.25 *action;
+	if (_t - _last_policy_time >= 0.02 || _last_policy_time < 0){
+		_last_policy_time = _t;
+		Eigen::VectorXd stacked_obs = _obs.update(_q, _qdot, _q_home, _last_action);
+		Eigen::VectorXd action = _policy->inference(stacked_obs); // policy 는 isaaclab 관절 순서대로
+		Eigen::VectorXd action_mj(_k);
+		action_mj.setZero();
+		for (int i=0; i< _k; i++){
+			action_mj(isaac_joint_to_mujoco[i]) = action(i);
+		}
+		_last_action = action;
+		_q_des = _q_home + 0.25 * action_mj;
+	} 
 	_qdot_des.setZero();
 	// ! position 제어 시 pd 제어는 무조코가 진행
 	JointControl();
@@ -317,12 +348,12 @@ void CController::Initialize()
 	// ! 
 	// LL (인덱스 0~6)
 	_q_home(2) = -0.035;   // LLJ3
-	_q_home(3) = -0.38;     // LLJ4
+	_q_home(3) = 0.38;     // LLJ4
 	_q_home(4) = -0.33;    // LLJ5
 
 	// RL (인덱스 7~13)
 	_q_home(9)  = 0.035;   // RLJ3
-	_q_home(10) = 0.38;   // RLJ4
+	_q_home(10) = -0.38;   // RLJ4
 	_q_home(11) = 0.33;    // RLJ5
 
 	// WL (인덱스 14~16)
@@ -332,13 +363,13 @@ void CController::Initialize()
 	_q_home(17) = 0.2;     // LAJ1
 	_q_home(18) = 0.2;     // LAJ2
 	_q_home(19) = 0.18;    // LAJ3
-	_q_home(20) = -1.0;    // LAJ4
+	_q_home(20) = -0.35;    // LAJ4
 
 	// RA (인덱스 24~30)
 	_q_home(24) = -0.2;    // RAJ1
 	_q_home(25) = -0.2;    // RAJ2
 	_q_home(26) = -0.18;   // RAJ3
-	_q_home(27) = 1.0;     // RAJ4
+	_q_home(27) = 0.35;     // RAJ4
 
 	_start_time = 0.0;
 	_end_time = 0.0;
