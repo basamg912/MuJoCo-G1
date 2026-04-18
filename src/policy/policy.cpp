@@ -18,14 +18,13 @@ Policy::Policy(const std::string& model_path)
     
     // ! 3) Allocator 는 메모리를 관리하는 주체, 0번째 인덱스 레이어 = 입력단 이름
     Ort::AllocatorWithDefaultOptions allocator;
-    // auto input_name_ptr = _session.GetInputNameAllocated(0, allocator);
-    _input_name = "obs";
+    auto input_name_ptr = _session.GetInputNameAllocated(0, allocator);
+    _input_name = input_name_ptr.get();
     auto input_shape = _session.GetInputTypeInfo(0).GetTensorTypeAndShapeInfo().GetShape();
     // ? 실제 feature 는 마지막 차원, batch_size 제외
     _input_dim = input_shape.back();
-    // ! 4) 
-    // auto output_name_ptr = _session.GetOutputNameAllocated(0, allocator);
-    _output_name="actions";
+    auto output_name_ptr = _session.GetOutputNameAllocated(0, allocator);
+    _output_name = output_name_ptr.get();
     auto output_shape = _session.GetOutputTypeInfo(0).GetTensorTypeAndShapeInfo().GetShape();
     _output_dim = output_shape.back();
     std::cout << "[INFO]\tFILE PATH\t:\t" << model_path << '\n';

@@ -4,6 +4,7 @@
 
 #include <eigen3/Eigen/Dense>
 #include <deque>
+#include <cmath>
 #include <mujoco/mujoco.h>
 
 class Observation
@@ -11,24 +12,22 @@ class Observation
 public:
     Observation();
     ~Observation();
-
+    bool stand;
     void setMujocoModel(const mjModel* m, mjData* d);
     void setVelocityCommand(double vx, double vy, double wz);
-    // ? 함수 뒤에 붙는 const : 객체 안의 멤버변수들을 수정 못하게
-    // ? 매개변수 앞에 붙는 const : 입력받은 인자를 수정하지 못하게 
     Eigen::VectorXd update(
         const Eigen::VectorXd& q,
         const Eigen::VectorXd& qdot,
         const Eigen::VectorXd& q_home,
         const Eigen::VectorXd& last_action
     );
-
     void reset();
+
 private:
     const mjModel* _mj_model;
     mjData* _mj_data;
     int _pelvis_body_id;
-    
+
     Eigen::VectorXd computeSingleObs(
         const Eigen::VectorXd& q,
         const Eigen::VectorXd& qdot,
@@ -36,16 +35,19 @@ private:
         const Eigen::VectorXd& last_action
     );
 
-    // ? 컴파일할때 값이 결정되어 종료될때까지 값을 유지 static: 모든 객체가 하나의 값을 공유, constexpr : 명시
-    static constexpr int SINGLE_DIM = 164;
-    static constexpr int HISTORY_LEN = 5;
-    static constexpr int LEG_DIM = 14;
-    static constexpr int NUM_BODIES = 32;
-    static constexpr int STACKED_DIM = 820;
+    // 3(ang_vel) + 3(gravity) + 2(lin_cmd) + 1(ang_cmd)
+    // + 29(dof_pos) + 29(dof_vel) + 29(actions)
+    // + 2(sin_phase: left,right) + 2(cos_phase: left,right) = 100
+    static constexpr int DOF         = 29;
+    static constexpr int HISTORY_LEN = 1;
+    static constexpr int SINGLE_DIM  = 100;
+    static constexpr int STACKED_DIM = SINGLE_DIM * HISTORY_LEN; // 100
 
     std::deque<Eigen::VectorXd> _history;
-    Eigen::Vector3d _vel_cmd;
-    Eigen::Vector3d _default_com;
+    Eigen::Vector3d _vel_cmd;  // vx, vy, wz
+
+    double _phase;       // 현재 위상 [0, 2π)
+    double _phase_freq;  // 보행 주파수 [Hz]
 };
 
 #endif

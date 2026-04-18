@@ -1,0 +1,6 @@
+[submodule "unitree_ros"]
+	path = unitree_ros
+	url = https://github.com/unitreerobotics/unitree_ros.git
+[submodule "pyfile/fastsac/holosoma"]
+	path = pyfile/fastsac/holosoma
+	url = https://github.com/amazon-far/holosoma.git

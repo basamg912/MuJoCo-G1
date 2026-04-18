@@ -3,3 +3,5 @@ build
 .lh/
 .vscode/
 model/kapex/
+.claude/
+.cache/*.cache/

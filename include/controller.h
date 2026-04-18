@@ -3,13 +3,12 @@
 #define __CONTROLLER_H
 
 #include "observation.h"
-#include "policy.h" 
+#include "policy.h"
 
-// #include <iostream>
 #include <eigen3/Eigen/Dense>
+#include <vector>
 
 #include "robotmodel.h"
-#include "trajectory.h"
 #include "custommath.h"
 
 using namespace std;
@@ -22,96 +21,58 @@ class CController
 
 public:
     CController();
-    virtual ~CController();	
+    virtual ~CController();
 
     Observation _obs;
-    // ? unique_ptr 은 복사 불가능 -> 하나의 객체는 하나의 포인터만 가리킴
     std::unique_ptr<Policy> _policy;
     Eigen::VectorXd _last_action;
 
     void read(double time, double* q, double* qdot);
     void control_mujoco();
+    void step_pd();
     void write(double* ctrl);
     void set_default_pose(mjData* d);
     void setModel(const mjModel* m, mjData* d){
         Model.set_mujoco_model(m,d);
+        _obs.setMujocoModel(m,d);
+        _qpos_adr.clear();
+        for (int i = 0; i < m->njnt; i++) {
+            if (m->jnt_type[i] == mjJNT_FREE) continue;
+            _qpos_adr.push_back(m->jnt_qposadr[i]);
+        }
+        // for(int i=0 ; i< m->njnt; i++){
+        //     std::cout << "[INFO] Joint " << i << " name : " << mj_id2name(m, mjOBJ_BODY, i) <<'\n';
+        // }
     }
-    VectorXd _q, _qdot, _q_order, _qdot_order;
-
+    void loadPolicy(const std::string& onnx_path){
+        _policy = std::make_unique<Policy>(onnx_path);
+        _last_action.setZero(29);
+    }
     void Initialize();
+    void reset();
 
+    VectorXd _q, _qdot;
+    std::vector<int> _qpos_adr;
+    
 private:
     VectorXd _kp_diag, _kd_diag;
     void ModelUpdate();
-    void motionPlan();
-    void setMujocoModel(mjModel* m, mjModel* d){
-        Model.set_mujoco_model(m,d);
-        _obs.setMujocoModel(m,d);
-    }
-    void loadPolicy(const std::string& onnx_path){
-        // ? Policy 객체 사이즈만큼 heap 영역 메모리 할당 -> onnx 를 생성자에 보내고 실제 객체 생성 -> unique_ptr 로 할당
-        _policy = std::make_unique<Policy>(onnx_path);
-        _last_action.setZero(31);
-    }
-    void setVelocityCommand(double vx, dobule vy, double wz){
-        _obs.setVelocityCommand(vx,vy,wz);
-    }
+    void JointControl();
 
-    void reset_target(double motion_time, VectorXd target_joint_position);
-    void reset_target(double motion_time, VectorXd target_joint_position, VectorXd target_joint_velocity);
-    void reset_target(double motion_time, Vector3d target_pos, Vector3d target_ori);
-
-    VectorXd _torque, _pre_q, _pre_qdot; // joint torque
+    VectorXd _torque, _pre_q, _pre_qdot;
     int _k; // DOF
 
     bool _bool_init;
     double _t;
     double _dt;
-	double _init_t;
-	double _pre_t;
+    double _init_t;
+    double _pre_t;
 
-    //controller
-	double _kpj, _kdj; //joint P,D gain
-    double _x_kp; // task control P gain
+    CModel Model;
 
-    void JointControl();
-    void CLIK();
-
-    // robotmodel
-    CModel Model; // ! CModel 객체를 생성
-
-    int _cnt_plan;
-	VectorXd _time_plan;
-	VectorXi _bool_plan;
-
-    int _control_mode; //1: joint space, 2: operational space
-    VectorXd _q_home; // joint home position
-
-    //motion trajectory
-	double _start_time, _end_time, _motion_time;
-
-    CTrajectory JointTrajectory; // joint space trajectory
-    HTrajectory HandTrajectory; // task space trajectory
-
-    bool _bool_joint_motion, _bool_ee_motion; // motion check
-
-    VectorXd _q_des, _qdot_des; 
-    VectorXd _q_goal, _qdot_goal;
-    VectorXd _x_des_hand, _xdot_des_hand;
-    VectorXd _x_goal_hand, _xdot_goal_hand;
-    Vector3d _pos_goal_hand, _rpy_goal_hand;
-
-    MatrixXd _A_diagonal; // diagonal inertia matrix
-    MatrixXd _J_hands; // jacobian matrix
-    MatrixXd _J_bar_hands; // pseudo invere jacobian matrix
-
-    VectorXd _x_hand, _xdot_hand; // End-effector
-
-
-    VectorXd _x_err_hand;
-    Matrix3d _R_des_hand;
-
-    MatrixXd _I; // Identity matrix
+    VectorXd _q_home;
+    VectorXd _q_des, _qdot_des;
+    
 };
 
 #endif
