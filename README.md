@@ -1,51 +1,49 @@
-# MuJoCo-franka-panda
-**MuJoCo Simulation for Franka Emika Panda**  
+# MuJoCo-G1-Locomotion
 
-<img src="https://github.com/ARC-KIST/MuJoCo-franka-panda/assets/113012648/e9dcf0f8-5e37-40b0-8b10-f4aa8f386b1a" width="80%"/>  
+## Preview
 
-</br></br>
+https://github.com/user-attachments/assets/a0d3b031-77c5-44d4-a3ba-be1764bdba3a
 
-## Installation
-__Essential 1.__ Clone the repository
-```shell
-$ git clone https://github.com/ARC-KIST/MuJoCo-franka-panda.git franka-panda
+
+
+## About
+
+MuJoCo simulation for Unitree G1 humanoid locomotion.
+Ported from [ARC-KIST/MuJoCo-franka-panda](https://github.com/ARC-KIST/MuJoCo-franka-panda) to support macOS Apple Silicon.
+
+## Requirements
+
+- macOS (Apple Silicon) or Linux x86-64
+- CMake 3.16+
+- MuJoCo 3.6.0
+- ONNX Runtime 1.24.4
+
+**macOS only:**
+```bash
+brew install glfw glew eigen
 ```
 
-__Essential 2.__ Install Dependencies
-> RBDL, GLFW etc. should be installed!
-- [RBDL](https://github.com/rbdl/rbdl.git): C++ library that contains some essential and efficient rigid body dynamics algorithms.
-  > For this project, we use version 3.2.0!
+## Build
 
-- [GLEW](https://github.com/nigels-com/glew.git): The OpenGL Extension Wrangler Library (GLEW) is a cross-platform open-source C/C++ extension loading library.
-- [GLFW](https://www.glfw.org/): GLFW (Graphics Library Framework) is a lightweight utility library for use with OpenGL.
-  ```shell
-  $ sudo apt-get install libglew-dev libglfw3-dev libglfw3
-  ```
+```bash
+mkdir build && cd build
 
-__Essential 3.__ Build the project
-> Make the **build** directory
-```shell
-$ mkdir build
-```
-```shell
-$ cd build
-```
-```
-$ cmake ..
-```
-```
-$ make
+# macOS
+cmake .. -DCMAKE_BUILD_TYPE=Release \
+         -DEigen3_DIR=/opt/homebrew/Cellar/eigen/3.4.0_1/share/eigen3/cmake
+
+# Linux
+cmake .. -DCMAKE_BUILD_TYPE=Release
+
+make -j$(nproc || sysctl -n hw.ncpu)
 ```
 
-__Essential 4.__ Check if it was installed correctly
-> Make sure you are in the build directory!
-```shell
-$ ./run
+## Run
+
+```bash
+./build/run
 ```
 
-</br></br>
-### Written by:
-- 240702: [Sol Choi](https://github.com/S-CHOI-S)
-- 240904: [Sol Choi](https://github.com/S-CHOI-S)
-- 240929: [Sol Choi](https://github.com/S-CHOI-S)
-- 241011: [Sol Choi](https://github.com/S-CHOI-S)
+## macOS Porting Notes
+
+See [PORTING_MACOS.md](PORTING_MACOS.md) for detailed macOS porting guide.
