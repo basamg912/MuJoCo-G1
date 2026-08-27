@@ -10,13 +10,15 @@ endif()
 
 # Find dependencies
 # macOS: Homebrew에 Eigen 5.x와 3.x가 공존 — 3.x를 강제 지정해야 RBDL과 호환됨
-if(APPLE)
-  find_package(Eigen3 3.3 REQUIRED
-    PATHS "/opt/homebrew/Cellar/eigen/3.4.0_1"
-    NO_DEFAULT_PATH)
-else()
-  find_package(Eigen3 3.3 REQUIRED)
-endif()
+# Project-local Eigen 3.4.0
+set(EIGEN3_INCLUDE_DIRS
+    ${CMAKE_SOURCE_DIR}/third_party/eigen-3.4.0
+)
+
+add_library(Eigen3::Eigen INTERFACE IMPORTED)
+set_target_properties(Eigen3::Eigen PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES "${EIGEN3_INCLUDE_DIRS}"
+)
 find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED HINTS /opt/homebrew/lib/cmake/glfw3)
 find_package(GLEW REQUIRED)

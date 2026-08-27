@@ -479,7 +479,7 @@ void PhysicsThread(mj::Simulate *sim, const char *filename) {
     m = LoadModel(filename, *sim);
     if (m)
       d = mj_makeData(m);
-      
+
       // ! debug
       // int actuated_idx = 0;
       // for ( int i=0; i<m->njnt; i++){
@@ -531,9 +531,9 @@ int main(int argc, const char **argv) {
   // char str[100] = "../model/fr3.xml"; // hand(xml)
   // char str[100] = "../model/kapex/kapex_play.xml"; // hand(xml)
   // char str[100] = "../unitree_ros/robots/g1_description/g1_29dof_rev_1_0.xml";
-  char str[200] = "../pyfile/fastsac/holosoma/src/holosoma/holosoma/data/robots/g1/scenes/scene_g1_29dof_wbt_plane.xml";
-  Policy policy("../pyfile/fastsac/holosoma/src/holosoma_inference/holosoma_inference/models/loco/g1_29dof/fastsac_g1_29dof.onnx");
-  Control.loadPolicy("../pyfile/fastsac/holosoma/src/holosoma_inference/holosoma_inference/models/loco/g1_29dof/fastsac_g1_29dof.onnx");
+  char str[200] = "../third_party/holosoma/src/holosoma/holosoma/data/robots/g1/scenes/scene_g1_29dof_wbt_plane.xml";
+  Policy policy("../pyfile/exported/policy.onnx");
+  Control.loadPolicy("../pyfile/exported/policy.onnx");
   Eigen::VectorXd dummy_obs = Eigen::VectorXd::Zero(100);
   std::cout << "[INFO] " << dummy_obs.size() << '\n';
   Eigen::VectorXd action = policy.inference(dummy_obs);
@@ -576,7 +576,7 @@ int main(int argc, const char **argv) {
   // }
   // memcpy(filename, str, sizeof(str));
   filename = str;
-  // start physics thread 
+  // start physics thread
   // ! UI 를 그리는 작업(쓰레드) 와 물리 계산 작업(쓰레드) 의 Hz 가 다르기 때문
   std::thread physicsthreadhandle(&PhysicsThread, sim.get(), filename);
 

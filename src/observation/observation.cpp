@@ -117,7 +117,7 @@ Eigen::VectorXd Observation::update(
 {
     Eigen::VectorXd single_obs = computeSingleObs(q, qdot, q_home, last_action);
     // std::cout << "[INFO - obs] " <<single_obs;
-    
+
     if (_history.empty()) {
         for (int i = 0; i < HISTORY_LEN; i++)
             _history.push_back(single_obs);
