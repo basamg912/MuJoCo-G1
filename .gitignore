@@ -1,0 +1,10 @@
+build
+.history/
+.lh/
+.vscode/
+model/kapex/
+.claude/
+.cache/*.cache/
+pyfile/kapex.py
+JointControl
+pyfile/fastsac
