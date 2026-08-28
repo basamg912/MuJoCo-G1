@@ -38,7 +38,7 @@ class ObservationsCfg:
         joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel, scale=0.05)
         last_action = ObsTerm(func=mdp.last_action)
-        
+
         dif_torso_com = ObsTerm(func=mdp.torso_com)
         height_scan = ObsTerm(
             func = mdp.height_scan,
@@ -48,14 +48,12 @@ class ObservationsCfg:
         obs_feet_air_time = ObsTerm(
             func=mdp.obs_feet_air_time,
             params={
-                "sensor_cfg" : SceneEntityCfg("contact_forces", body_names=["LL[67]","RL[67]"]),
+                "sensor_cfg" : SceneEntityCfg("contact_forces", body_names=["right_feet","left_feet"]),
             },
         )
-        
+
         def __post_init__(self):
             self.history_length = 5
 
     critic: CriticCfg = CriticCfg()
     policy: PolicyCfg = PolicyCfg()
-    
-    

@@ -1,0 +1,1 @@
+/Library/Developer/CommandLineTools/usr/bin/c++  -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX26.4.sdk -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/run.dir/main.cpp.o -o run  -Wl,-rpath,/usr/local/lib /usr/local/lib/libmujoco.3.10.1.dylib

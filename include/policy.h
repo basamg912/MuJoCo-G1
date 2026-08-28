@@ -26,7 +26,7 @@ private:
     std::string _output_name;
 
     // ? {nullptr} -> 객체 생성자 호출 후 초기화
-    // Ort : onnxruntime 
+    // Ort : onnxruntime
     Ort::Env _env; // ! onnx runtime 관리 객체
     Ort::Session _session{nullptr}; // ! onnx 파일 로드, 실행
     Ort::MemoryInfo _memory_info{nullptr};

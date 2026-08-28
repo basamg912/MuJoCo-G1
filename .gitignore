@@ -2,10 +2,6 @@ build
 .history/
 .lh/
 .vscode/
-model/kapex/
-.claude/
-.cache/
-pyfile/kapex.py
-JointControl
-pyfile/fastsac
-.omc/
+**/kapex/**
+mujoco**/
+**/inbox/**

@@ -1,0 +1,3 @@
+/Users/basamg/work/Mujoco_Humanoid/test/CMakeFiles/run.dir
+/Users/basamg/work/Mujoco_Humanoid/test/CMakeFiles/edit_cache.dir
+/Users/basamg/work/Mujoco_Humanoid/test/CMakeFiles/rebuild_cache.dir

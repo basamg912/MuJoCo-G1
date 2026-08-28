@@ -1,53 +1,113 @@
-// robot.py dof_pos_lower_limit_list (dof_names 순서 기준)
-const double g1_pos_lower_limit[29] = {
-    -2.5307, -0.5236, -2.7576, -0.087267, -0.87267, -0.2618,          // left leg
-    -2.5307, -2.9671, -2.7576, -0.087267, -0.87267, -0.2618,          // right leg
-    -2.618,  -0.52,   -0.52,                                            // waist
-    -3.0892, -1.5882, -2.618, -1.0472, -1.972222054, -1.61443, -1.61443, // left arm
-    -3.0892, -2.2515, -2.618, -1.0472, -1.972222054, -1.61443, -1.61443, // right arm
+#pragma once
+
+struct ActuatorParam{
+    double X1;
+    double X2;
+    double Y1;
+    double SF;
+    double DF;
+};
+constexpr ActuatorParam Example= {
+    .X1 = 10,
+    .X2 = 15,
+    .Y1 = 250,
+    .SF = 5,
+    .DF = 0.5,
 };
 
-// robot.py dof_pos_upper_limit_list
-const double g1_pos_upper_limit[29] = {
-    2.8798, 2.9671, 2.7576, 2.8798, 0.5236, 0.2618,                   // left leg
-    2.8798, 0.5236, 2.7576, 2.8798, 0.5236, 0.2618,                   // right leg
-    2.618,  0.52,   0.52,                                               // waist
-    2.6704, 2.2515, 2.618, 2.0944, 1.972222054, 1.61443, 1.61443,     // left arm
-    2.6704, 1.5882, 2.618, 2.0944, 1.972222054, 1.61443, 1.61443,     // right arm
+constexpr const ActuatorParam* JOINT_ACTUATOR_MAP[31]={
+    // ===== Example Legs (LL/RL) =====
+    /*  0 hip yaw   */ &Example,
+    /*  1 hip roll  */ &Example,
+    /*  2 hip pitch */ &Example,
+    /*  3 knee      */ &Example,
+    /*  4 ankle p   */ &Example,
+    /*  5 ankle r   */ &Example,
+    /*  6 toe       */ &Example,
+    &Example,
+    &Example,
+    &Example,
+    &Example,
+    &Example,
+    &Example,
+    &Example,
+};
+static const int isaac_leg_to_mujoco[14] = {
+    0, 7, 1, 8, 2, 9, 3, 10, 4, 11, 5, 12, 6, 13
+};
+static const int isaac_joint_to_mujoco[31] = {
+    0,
+    7,
+    14,
+    1,
+    8,
+    15,
+    2,
+    9,
+    16,
+    3,
+    10,
+    17,
+    24,
+    4,
+    11,
+    18,
+    25,
+    5,
+    12,
+    19,
+    26,
+    6,
+    13,
+    20,
+    27,
+    21,
+    28,
+    22,
+    29,
+    23,
+    30,
 };
 
-// robot.py dof_vel_limit_list
-const double g1_vel_limit[29] = {
-    32.0, 20.0, 32.0, 20.0, 37.0, 37.0,  // left leg
-    32.0, 20.0, 32.0, 20.0, 37.0, 37.0,  // right leg
-    32.0, 37.0, 37.0,                      // waist
-    37.0, 37.0, 37.0, 37.0, 37.0, 22.0, 22.0, // left arm
-    37.0, 37.0, 37.0, 37.0, 37.0, 22.0, 22.0, // right arm
+static const double Example_Leg_kp[14] = {
+    50, 50, 150, 150, 30, 30, 5,
+    50, 50, 150, 150, 30, 30, 5
+};
+static const double Example_Leg_kd[14] = {
+    10, 10, 20, 20, 2.0, 2.0, 0.05,
+    10, 10, 20, 20, 2.0, 2.0, 0.05
 };
 
-const double g1_default_pose[29]={
-    -0.312, 0.0, 0.0, 0.669, -0.363, 0.0, // left leg:  pitch, roll, yaw, knee, ankle_pitch, ankle_roll
-    -0.312, 0.0, 0.0, 0.669, -0.363, 0.0, // right leg
-    0.0, 0.0, 0.0,                         // waist: yaw, roll, pitch
-    0.2, 0.2, 0.0, 0.6, 0.0, 0.0, 0.0,    // left arm:  s_pitch, s_roll, s_yaw, elbow, w_roll, w_pitch, w_yaw
-    0.2, -0.2, 0.0, 0.6, 0.0, 0.0, 0.0,   // right arm
+static const double joint_kp[31] = {
+    50, 50, 150, 150, 30, 30, 5,
+    50, 50, 150, 150, 30, 30, 5,
+    220, 350, 400,
+    70, 70, 5, 5, 2, 5, 5,
+    70, 70, 5, 5, 2, 5, 5
 };
 
-// robot.py dof_effort_limit_list
-const double g1_effort_limit[29] = {
-    88.0, 139.0, 88.0, 139.0, 50.0, 50.0,  // left leg
-    88.0, 139.0, 88.0, 139.0, 50.0, 50.0,  // right leg
-    88.0,  50.0, 50.0,                       // waist
-    25.0,  25.0, 25.0, 25.0, 25.0, 5.0, 5.0, // left arm
-    25.0,  25.0, 25.0, 25.0, 25.0, 5.0, 5.0, // right arm
+static const double joint_kd[31] = {
+    10, 10, 20, 20, 2.0, 2.0, 0.05,
+    10, 10, 20, 20, 2.0, 2.0, 0.05,
+    25, 50, 50,
+    8, 8, 1, 1, 0.5, 0.05, 0.05,
+    8, 8, 1, 1, 0.5, 0.05, 0.05
 };
 
-// 학습 환경(Isaac Lab)의 flip_sign_joint_names 에 해당하는 관절: 1 = 부호 반전
-const int g1_flip_sign[29] = {
-    0, 1, 1, 0, 0, 1,       // left leg:  pitch, roll*, yaw*, knee, ankle_pitch, ankle_roll*
-    0, 1, 1, 0, 0, 1,       // right leg
-    1, 1, 0,                 // waist: yaw*, roll*, pitch
-    0, 1, 1, 0, 1, 0, 1,    // left arm:  s_pitch, s_roll*, s_yaw*, elbow, w_roll*, w_pitch, w_yaw*
-    0, 1, 1, 0, 1, 0, 1,    // right arm
+// effort limit (MuJoCo 순서)
+static const double joint_effort_limit[31] = {
+    50, 50, 150, 150, 35, 35, 10,
+    50, 50, 150, 150, 35, 35, 10,
+    100, 200, 200,
+    50, 50, 30, 30, 20, 10, 10,
+    50, 50, 30, 30, 20, 10, 10
 };
 
+// velocity limit (MuJoCo 순서)
+static const double joint_vel_limit[31] = {
+    10, 10, 10, 10, 8, 8, 5,
+    10, 10, 10, 10, 8, 8, 5,
+    15, 15, 15,
+    5, 5, 5, 5, 5, 5, 5,
+    5, 5, 5, 5, 5, 5, 5
+};

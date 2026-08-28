@@ -10,8 +10,7 @@ def torso_com(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("
 
     coms = asset.root_physx_view.get_coms().clone()
 
-    # default_com = torch.tensor([-0.066071861, -0.19773669, 0.0024721903], device=env.device)
-    default_com = torch.tensor([-0.066071861, -0.19773669, 0.0024721903], device=env.device)
+    # default_com = torch.tensor([x, y, z], device=env.device)
     # 기본값을 뺀 delta com 반환 (num_envs, 3)
     return torch.abs(coms[:, body_ids, :3].squeeze(1).to(env.device) - default_com)
 
